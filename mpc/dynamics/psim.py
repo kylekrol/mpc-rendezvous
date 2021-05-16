@@ -10,7 +10,7 @@ import numpy as np
 def _leader_ics(dr_hill, dv_hill, w_earth_ecef, r_ecef, v_ecef):
     # Inertially stuck ECEF
     r_ecef0 = r_ecef
-    v_ecef0 = v_ecef - lin.cross(w_earth_ecef, r_ecef0)
+    v_ecef0 = v_ecef + lin.cross(w_earth_ecef, r_ecef0)
 
     # Angular rate of the will frame in the interially stuck ECEF frame
     w_hill_ecef0 = lin.cross(r_ecef0, v_ecef0) / lin.fro(r_ecef0)
@@ -45,6 +45,12 @@ class PSimDynamics(Dynamics):
         configs = ['lib/psim/config/parameters/' + config + '.txt' for config in configs]
         config = Configuration(configs)
 
+        config['truth.dt.ns'] = dt
+        config['truth.follower.mass'] = m
+        config['sensors.follower.cdgps.model_range'] = False
+        config['fc.follower.relative_orbit.r.hill.alpha'] = 0.6
+        config['fc.follower.relative_orbit.v.hill.alpha'] = 0.6
+
         sim = Simulation(OrbitMpcRendezvous, config)
 
         r_ecef, v_ecef = _leader_ics(
@@ -53,8 +59,6 @@ class PSimDynamics(Dynamics):
             sim['truth.follower.orbit.v.ecef']
         )
 
-        config['truth.dt.ns'] = dt
-        config['truth.follower.mass'] = m
         config['truth.leader.orbit.r'] = r_ecef
         config['truth.leader.orbit.v'] = v_ecef
 
@@ -70,14 +74,20 @@ class PSimDynamics(Dynamics):
         """Current, measured position of the follower spacecraft in the HILL
         frame.
         """
-        return np.array(self.sim['fc.follower.relative_orbit.dr'])
+        if not self.sim['fc.follower.relative_orbit.is_valid']:
+            raise RuntimeError('Invalid relative orbit estimate')
+
+        return np.array(self.sim['fc.follower.relative_orbit.r.hill'])
 
     @property
     def measured_dv(self):
         """Current, measured velocity of the follower spacecraft in the HILL
         frame.
         """
-        return np.array(self.sim['fc.follower.relative_orbit.dv'])
+        if not self.sim['fc.follower.relative_orbit.is_valid']:
+            raise RuntimeError('Invalid relative orbit estimate')
+
+        return np.array(self.sim['fc.follower.relative_orbit.v.hill'])
 
     @property
     def time_ns(self):

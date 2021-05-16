@@ -14,31 +14,36 @@ directory = sys.argv[1]
 controller = pandas.read_csv(directory + '/controller.csv')
 dynamics = pandas.read_csv(directory + '/dynamics.csv')
 
-# Controllers actuation and desired horizon plots
+
 fig = plt.figure()
 
 ax = fig.add_subplot(221)
 ax.plot(controller['time_s'], controller['control.x'])
 ax.set_xlabel('$t$ (s)')
 ax.set_ylabel('$u_x$ (Ns)')
+ax.set_ylim(-0.025, 0.025)
 
 ax = fig.add_subplot(222)
 ax.plot(controller['time_s'], controller['control.y'])
 ax.set_xlabel('$t$ (s)')
 ax.set_ylabel('$u_y$ (Ns)')
+ax.set_ylim(-0.025, 0.025)
 
 ax = fig.add_subplot(223)
 ax.plot(controller['time_s'], controller['control.z'])
 ax.set_xlabel('$t$ (s)')
 ax.set_ylabel('$u_z$ (Ns)')
+ax.set_ylim(-0.025, 0.025)
 
 ax = fig.add_subplot(224)
 ax.plot(controller['time_s'], controller['horizon'])
 ax.set_xlabel('$t$ (s)')
 ax.set_ylabel('Desired Horizon')
+ax.set_ylim(0, 72)
 
 fig.tight_layout()
 fig.show()
+
 
 fig = plt.figure()
 
@@ -50,6 +55,7 @@ ax.set_zlabel('$\delta r_z$ (m)')
 
 fig.tight_layout()
 fig.show()
+
 
 fig = plt.figure()
 

@@ -1,7 +1,6 @@
 from mpc import ClohessyWiltshireDynamics, LPController, QCQPController, PSimDynamics, VariableHorizonController
 from mpc.utilities import cw
 
-import lin
 import numpy as np
 import scipy as sp
 
@@ -21,7 +20,7 @@ dt = 100000000
 m = 3.6
 
 # Initial state
-x0 = np.array([10.0, 100.0, 0.0, 0.0, 0.015, 0.0])
+x0 = np.array([10.0, 600.0, 20.0, 0.0, 0.015, 0.0])
 
 # Controller frequency, horizon limit, constant stage cost, final stage cost,
 # quadratic control cost, L1 control cost, and largest allowable impulse
@@ -64,14 +63,14 @@ def make_lp():
 
 # Stopping condition
 def stop(dynamics):
-    return np.linalg.norm(dynamics.true_dr) <= 0.3 and np.linalg.norm(dynamics.true_dv) <= 0.003
+    return np.linalg.norm(dynamics.true_dr) <= 0.4 and np.linalg.norm(dynamics.true_dv) <= 0.004
 
 # Dynamics and controller selection
-make_dynamics = make_cw
+make_dynamics = make_psim
 make_controller = make_qcqp
 
 # Logging file directory
-logging_directory = 'logs/cw-qcqp-{}'.format(datetime.datetime.now().strftime('%m%d%Y-%H%M%S'))
+logging_directory = 'logs/psim-qcqp-{}'.format(datetime.datetime.now().strftime('%m%d%Y-%H%M%S'))
 
 ################################################################################
 
@@ -142,7 +141,7 @@ if mode == 'plan':
 
 # Dynamics logs
 dynamics_logs = [
-    "mean_motion", "measured_dr", "measured_dv", "time_s", "true_dr", "true_dv"
+    "mean_motion", "time_s", "true_dr", "true_dv"
 ]
 dynamics_logs = {name: list() for name in dynamics_logs}
 
@@ -153,7 +152,7 @@ controller_logs = [
 controller_logs = {name: list() for name in controller_logs}
 
 steps = 0
-while not stop(dynamics) and steps < 100000:
+while not stop(dynamics) and steps < 10000000:
     # Drift stage
     for i in range(T - 1):
         dynamics.step()
@@ -162,6 +161,12 @@ while not stop(dynamics) and steps < 100000:
                 values.append(getattr(dynamics, key))
 
         steps = steps + 1
+
+        if stop(dynamics):
+            break
+    
+    if stop(dynamics):
+        break
 
     # Control stage
     A = cw((T * dt) / 1.0e9, dynamics.mean_motion)
