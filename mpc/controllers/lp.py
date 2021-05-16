@@ -14,10 +14,14 @@ class LPController(FixedHorizonController):
         """Add final stage affine constraints, control constraints, and L1 stage
         control costs.
         """
-        self.constraints.append(cp.abs(self.X[0:3, self.N + 1]) <= rtol)
-        self.constraints.append(cp.abs(self.X[3:6, self.N + 1]) <= vtol)
+        self.constraints.append(cp.abs(self.X[0:3, self.N]) <= rtol)
+        self.constraints.append(cp.abs(self.X[3:6, self.N]) <= vtol)
         for i in range(self.N):
             self.constraints.append(cp.abs(self.U[:, i]) <= umax / np.sqrt(3))
 
         for i in range(self.N):
-            self.costs[i] += [rho * cp.norm(self.U[:, i], p=1)]
+            self.costs[i] += rho * cp.norm(self.U[:, i], p=1)
+
+    @property
+    def stage_costs(self):
+        return [cost.value for cost in self.costs[:-1]]

@@ -3,42 +3,70 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas
 
+import sys
 
-data = pandas.read_csv('logs/logs.csv')
 
-fg = plt.figure()
-ax = fg.add_subplot(111, projection='3d')
-ax.plot(data['truth.follower.hill.dr.x'], data['truth.follower.hill.dr.y'],
-        data['truth.follower.hill.dr.z'])
-ax.set_xlabel('dr.x')
-ax.set_ylabel('dr.y')
-ax.set_zlabel('dr.z')
-fg.show()
+if len(sys.argv) != 2:
+    print('USAGE: python plots.py LOGS', sys.stderr)
+    sys.exit(-1)
 
-fg = plt.figure()
-plt.plot(data['truth.follower.hill.dr.x'], label='dr.x')
-plt.plot(data['truth.follower.hill.dr.y'], label='dr.y')
-plt.plot(data['truth.follower.hill.dr.z'], label='dr.z')
-plt.legend()
-fg.show()
+directory = sys.argv[1]
+controller = pandas.read_csv(directory + '/controller.csv')
+dynamics = pandas.read_csv(directory + '/dynamics.csv')
 
-fg = plt.figure()
-plt.plot(data['truth.follower.hill.dv.x'], label='dv.x')
-plt.plot(data['truth.follower.hill.dv.y'], label='dv.y')
-plt.plot(data['truth.follower.hill.dv.z'], label='dv.z')
-plt.legend()
-fg.show()
+# Controllers actuation and desired horizon plots
+fig = plt.figure()
 
-fg = plt.figure()
-plt.plot(data['fc.follower.orbit.horizon'], label='N')
-plt.legend()
-fg.show()
+ax = fig.add_subplot(221)
+ax.plot(controller['time_s'], controller['control.x'])
+ax.set_xlabel('$t$ (s)')
+ax.set_ylabel('$u_x$ (Ns)')
 
-print(set(data['fc.follower.orbit.horizon']))
+ax = fig.add_subplot(222)
+ax.plot(controller['time_s'], controller['control.y'])
+ax.set_xlabel('$t$ (s)')
+ax.set_ylabel('$u_y$ (Ns)')
 
-plt.figure()
-plt.plot(data['fc.follower.orbit.J.hill.x'], label='J.x')
-plt.plot(data['fc.follower.orbit.J.hill.y'], label='J.y')
-plt.plot(data['fc.follower.orbit.J.hill.z'], label='J.z')
-plt.legend()
+ax = fig.add_subplot(223)
+ax.plot(controller['time_s'], controller['control.z'])
+ax.set_xlabel('$t$ (s)')
+ax.set_ylabel('$u_z$ (Ns)')
+
+ax = fig.add_subplot(224)
+ax.plot(controller['time_s'], controller['horizon'])
+ax.set_xlabel('$t$ (s)')
+ax.set_ylabel('Desired Horizon')
+
+fig.tight_layout()
+fig.show()
+
+fig = plt.figure()
+
+ax = fig.add_subplot(111, projection='3d')
+ax.plot(dynamics['true_dr.x'], dynamics['true_dr.y'], dynamics['true_dr.z'])
+ax.set_xlabel('$\delta r_x$ (m)')
+ax.set_ylabel('$\delta r_y$ (m)')
+ax.set_zlabel('$\delta r_z$ (m)')
+
+fig.tight_layout()
+fig.show()
+
+fig = plt.figure()
+
+ax = fig.add_subplot(211)
+ax.plot(dynamics['time_s'], dynamics['true_dr.x'], label='$\delta r_x$')
+ax.plot(dynamics['time_s'], dynamics['true_dr.y'], label='$\delta r_y$')
+ax.plot(dynamics['time_s'], dynamics['true_dr.z'], label='$\delta r_z$')
+ax.legend()
+ax.set_ylabel('Relative Position (m)')
+
+ax = fig.add_subplot(212)
+ax.plot(dynamics['time_s'], dynamics['true_dv.x'], label='$\delta v_x$')
+ax.plot(dynamics['time_s'], dynamics['true_dv.y'], label='$\delta v_y$')
+ax.plot(dynamics['time_s'], dynamics['true_dv.z'], label='$\delta v_z$')
+ax.legend()
+ax.set_xlabel('$t$ (s)')
+ax.set_ylabel('Relative Velocity (m/s)')
+
+fig.tight_layout()
 plt.show()

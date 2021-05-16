@@ -1,6 +1,3 @@
-[submodule "lib/ecos"]
-	path = lib/ecos
-	url = https://github.com/embotech/ecos.git
 [submodule "lib/psim"]
 	path = lib/psim
 	url = https://github.com/kylekrol/psim.git

@@ -65,11 +65,11 @@ class ClohessyWiltshireDynamics(Dynamics):
         """
         return self.x[3:6]
 
-    def run(self, u=None):
-        super(ClohessyWiltshireDynamics, self).run()
+    def step(self, u=None):
+        super(ClohessyWiltshireDynamics, self).step()
 
         self.x = np.matmul(self.A, self.x) + self.sw * np.random.normal((6, ))
         if u is not None:
             self.x = self.x + np.matmul(self.B, u)
 
-        self.y = x0 + self.sv * np.random.normal((6, ))
+        self.y = self.x + self.sv * np.random.normal((6, ))

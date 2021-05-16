@@ -4,7 +4,7 @@ import numpy as np
 def cw(dt, n):
     """Generates the Clohessy-Wilshire discrete-time dynamics.
     """
-    nt = n*dt
+    nt = n * dt
     snt = np.sin(nt)
     cnt = np.cos(nt)
 
