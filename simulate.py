@@ -6,32 +6,30 @@ import scipy as sp
 
 import datetime
 import math
+import time
 import os
-import sys
 
 
 ### Configuration Parameters ###################################################
 
-# Mode -- either 'simulate' or 'plan'
-mode = 'simulate'
+# Mode -- either 'simulate', 'plan', or 'monte-carlo'
+mode = 'monte-carlo'
 
 # Simulation timestep (0.1 s), satellite mass, and target mean motion.
 dt = 100000000
 m = 3.6
 
 # Initial state
-x0 = np.array([10.0, 600.0, 20.0, 0.0, 0.015, 0.0])
+x0 = np.array([25.0, 500.0, 10.0, 0.0, 0.015, 0.0])
 
 # Controller frequency, horizon limit, constant stage cost, final stage cost,
 # quadratic control cost, L1 control cost, and largest allowable impulse
 T = 5 * 60 * 10
 N = 72
-J = 1.0e-5
-rho = 0.0
 umax = 0.025
 
 # Function to generate CW dynamics
-def make_cw():
+def make_cw(x0):
     n = 2.0 * math.pi / (90.0 * 60.0)
     sw = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     sv = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -39,16 +37,30 @@ def make_cw():
     return ClohessyWiltshireDynamics(dt, n, m, sw, sv, x0)
 
 # Function to generate PSim dynamics
-def make_psim():
+def make_psim(x0):
     return PSimDynamics(dt, m, x0)
 
 # Function to generate a QCQP controller
 def make_qcqp():
-    ## Solely L2 Norm control cost
+    ## Solely L2 norm control cost
     Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
     R = sp.sparse.diags([1.0, 1.0, 1.0])
     rho = 0.0
     J = 1.0e-4
+    ##
+
+    ## Joint L2 and L1 norm control cost
+    # Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
+    # R = sp.sparse.diags([0.25, 0.25, 0.25])
+    # rho = 3.0 * 0.025 / 4.0
+    # J = 0.4e-4
+    ##
+
+    ## Solely L1 norm control cost
+    # Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
+    # R = sp.sparse.diags([0.0, 0.0, 0.0])
+    # rho = 0.025
+    # J = 0.9e-4
     ##
 
     return VariableHorizonController(N, QCQPController, J, Q, R, rho, umax)
@@ -58,6 +70,8 @@ def make_lp():
     # LP specific configuration
     rtol = 0.01
     vtol = 0.001
+    rho = 0.025
+    J = 1.0e-4
 
     return VariableHorizonController(N, LPController, J, rho, rtol, vtol, umax)
 
@@ -70,16 +84,17 @@ make_dynamics = make_psim
 make_controller = make_qcqp
 
 # Logging file directory
-logging_directory = 'logs/psim-qcqp-{}'.format(datetime.datetime.now().strftime('%m%d%Y-%H%M%S'))
+logging_directory = 'logs/true-l1-{}'.format(datetime.datetime.now().strftime('%m%d%Y-%H%M%S'))
 
 ################################################################################
 
 # Generate our dynamics and controller
-dynamics = make_dynamics()
+dynamics = make_dynamics(x0)
 controller = make_controller()
 
-# Handle if we're only looking to plan here
 if mode == 'plan':
+    print('Starting planning!')
+
     import matplotlib.pyplot as plt
 
     A = cw((T * dt) / 1.0e9, dynamics.mean_motion)
@@ -135,83 +150,134 @@ if mode == 'plan':
     plt.ylabel('Cost')
     plt.show()
 
-    # Exit early if we're just looking to "plan"
-    sys.exit(0)
+elif mode == 'simulate':
+    print('Starting simulation!')
 
+    # Dynamics logs
+    dynamics_logs = [
+        "mean_motion", "time_s", "true_dr", "true_dv"
+    ]
+    dynamics_logs = {name: list() for name in dynamics_logs}
 
-# Dynamics logs
-dynamics_logs = [
-    "mean_motion", "time_s", "true_dr", "true_dv"
-]
-dynamics_logs = {name: list() for name in dynamics_logs}
+    # Controller logs
+    controller_logs = [
+        "control", "total_cost", "horizon", "time_s"
+    ]
+    controller_logs = {name: list() for name in controller_logs}
 
-# Controller logs
-controller_logs = [
-    "control", "total_cost", "horizon", "time_s"
-]
-controller_logs = {name: list() for name in controller_logs}
+    steps = 0
+    while not stop(dynamics) and steps < 10000000:
+        # Drift stage
+        for i in range(T - 1):
+            dynamics.step()
+            if i % 10 == 0:
+                for key, values in dynamics_logs.items():
+                    values.append(getattr(dynamics, key))
 
-steps = 0
-while not stop(dynamics) and steps < 10000000:
-    # Drift stage
-    for i in range(T - 1):
-        dynamics.step()
-        if i % 10 == 0:
-            for key, values in dynamics_logs.items():
-                values.append(getattr(dynamics, key))
+            steps = steps + 1
 
-        steps = steps + 1
+            if stop(dynamics):
+                break
 
         if stop(dynamics):
             break
-    
-    if stop(dynamics):
-        break
 
-    # Control stage
-    A = cw((T * dt) / 1.0e9, dynamics.mean_motion)
-    B = A[:, 3:6] / m
-    r0 = dynamics.true_dr
-    v0 = dynamics.true_dv
-    x0 = np.array([r0[0], r0[1], r0[2], v0[0], v0[1], v0[2]])
-    controller.run(A, B, x0)
-    u = -controller.control if isinstance(dynamics, PSimDynamics) else controller.control
-    dynamics.step(u)
-    for key, values in controller_logs.items():
-        if key != 'time_s' and key != 'control':
-            values.append(getattr(controller, key))
-    controller_logs['control'].append(u)
-    controller_logs['time_s'].append(dynamics.time_s)
-    for key, values in dynamics_logs.items():
-        values.append(getattr(dynamics, key))
+        # Control stage
+        A = cw((T * dt) / 1.0e9, dynamics.mean_motion)
+        B = A[:, 3:6] / m
+        r0 = dynamics.true_dr
+        v0 = dynamics.true_dv
+        x0 = np.array([r0[0], r0[1], r0[2], v0[0], v0[1], v0[2]])
 
-    steps = steps + 1
-    print('Control Horizon={}, Steps={}'.format(controller.horizon, steps))
+        controller.run(A, B, x0)
+        u = -controller.control if isinstance(dynamics, PSimDynamics) else controller.control
+        dynamics.step(u)
+        for key, values in controller_logs.items():
+            if key != 'time_s' and key != 'control' and key != 'computation':
+                values.append(getattr(controller, key))
+        controller_logs['control'].append(u)
+        controller_logs['time_s'].append(dynamics.time_s)
+        for key, values in dynamics_logs.items():
+            values.append(getattr(dynamics, key))
 
-os.makedirs(logging_directory)
-def logging(filename, logs):
-    with open(logging_directory + '/' + filename, 'w') as csv:
-        keys = sorted(logs.keys())
-        suffixes = ['x', 'y', 'z', 'w']
+        steps = steps + 1
+        print('Control Horizon={}, Steps={}'.format(controller.horizon, steps))
 
-        for key in keys:
-            value = logs[key][0]
-            if type(value) is np.ndarray:
-                for j in range(value.size):
-                    csv.write(f'{key}.{suffixes[j]},')
-            else:
-                csv.write(f'{key},')
-        csv.write('\n')
+    os.makedirs(logging_directory)
+    def logging(filename, logs):
+        with open(logging_directory + '/' + filename, 'w') as csv:
+            keys = sorted(logs.keys())
+            suffixes = ['x', 'y', 'z', 'w']
 
-        for i in range(len(logs['time_s'])):
             for key in keys:
-                value = logs[key][i]
+                value = logs[key][0]
                 if type(value) is np.ndarray:
                     for j in range(value.size):
-                        csv.write(f'{value[j]},')
+                        csv.write(f'{key}.{suffixes[j]},')
                 else:
-                    csv.write(f'{value},')
+                    csv.write(f'{key},')
             csv.write('\n')
 
-logging('controller.csv', controller_logs)
-logging('dynamics.csv', dynamics_logs)
+            for i in range(len(logs['time_s'])):
+                for key in keys:
+                    value = logs[key][i]
+                    if type(value) is np.ndarray:
+                        for j in range(value.size):
+                            csv.write(f'{value[j]},')
+                    else:
+                        csv.write(f'{value},')
+                csv.write('\n')
+
+    logging('controller.csv', controller_logs)
+    logging('dynamics.csv', dynamics_logs)
+
+elif mode == 'monte-carlo':
+    print('Starting Monte Carlo!')
+
+    samples = 50
+    controller = make_controller()
+
+    dvs = list()
+    stages = list()
+    for _ in range(samples):
+
+        r = 20.0 * np.random.randn()
+        v = (-500.0 if np.random.rand() > 0.5 else 500.0) + 20.0 * np.random.randn()
+        n = 10.0 * np.random.randn()
+        x0 = np.array([r, v, n, 0.0, 0.0, 0.0])
+
+        dynamics = make_dynamics(x0)
+
+        dv = 0.0
+        stage = 0
+        while not stop(dynamics) and stage < 1000:
+
+            for i in range(T - 1):
+                dynamics.step()
+                if stop(dynamics):
+                    break
+            if stop(dynamics):
+                break
+
+            # Control stage
+            A = cw((T * dt) / 1.0e9, dynamics.mean_motion)
+            B = A[:, 3:6] / m
+            r0 = dynamics.true_dr
+            v0 = dynamics.true_dv
+            x0 = np.array([r0[0], r0[1], r0[2], v0[0], v0[1], v0[2]])
+            controller.run(A, B, x0)
+            u = -controller.control if isinstance(dynamics, PSimDynamics) else controller.control
+            dynamics.step(u)
+
+            dv += np.linalg.norm(u)
+            stage += 1
+
+        if stage >= 1000:
+            print('WARNING: Stage timed out!')
+        print('Completed run with dv={} and stage={}'.format(dv, stage))
+
+        dvs.append(dv)
+        stages.append(stage)
+
+    print('dv mean={} and std={}'.format(np.average(dvs), np.std(dvs)))
+    print('stages mean={} and std={}'.format(np.average(stages), np.std(stages)))
