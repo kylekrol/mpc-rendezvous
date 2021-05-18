@@ -6,14 +6,13 @@ import scipy as sp
 
 import datetime
 import math
-import time
 import os
 
 
 ### Configuration Parameters ###################################################
 
 # Mode -- either 'simulate', 'plan', or 'monte-carlo'
-mode = 'monte-carlo'
+mode = 'simulate'
 
 # Simulation timestep (0.1 s), satellite mass, and target mean motion.
 dt = 100000000
@@ -43,10 +42,10 @@ def make_psim(x0):
 # Function to generate a QCQP controller
 def make_qcqp():
     ## Solely L2 norm control cost
-    Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
-    R = sp.sparse.diags([1.0, 1.0, 1.0])
-    rho = 0.0
-    J = 1.0e-4
+    # Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
+    # R = sp.sparse.diags([1.0, 1.0, 1.0])
+    # rho = 0.0
+    # J = 1.0e-4
     ##
 
     ## Joint L2 and L1 norm control cost
@@ -57,10 +56,10 @@ def make_qcqp():
     ##
 
     ## Solely L1 norm control cost
-    # Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
-    # R = sp.sparse.diags([0.0, 0.0, 0.0])
-    # rho = 0.025
-    # J = 0.9e-4
+    Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
+    R = sp.sparse.diags([0.0, 0.0, 0.0])
+    rho = 0.025
+    J = 0.9e-4
     ##
 
     return VariableHorizonController(N, QCQPController, J, Q, R, rho, umax)
@@ -84,7 +83,7 @@ make_dynamics = make_psim
 make_controller = make_qcqp
 
 # Logging file directory
-logging_directory = 'logs/true-l1-{}'.format(datetime.datetime.now().strftime('%m%d%Y-%H%M%S'))
+logging_directory = 'logs/measured-l1-{}'.format(datetime.datetime.now().strftime('%m%d%Y-%H%M%S'))
 
 ################################################################################
 
@@ -185,8 +184,8 @@ elif mode == 'simulate':
         # Control stage
         A = cw((T * dt) / 1.0e9, dynamics.mean_motion)
         B = A[:, 3:6] / m
-        r0 = dynamics.true_dr
-        v0 = dynamics.true_dv
+        r0 = dynamics.measured_dr
+        v0 = dynamics.measured_dv
         x0 = np.array([r0[0], r0[1], r0[2], v0[0], v0[1], v0[2]])
 
         controller.run(A, B, x0)
@@ -234,7 +233,7 @@ elif mode == 'simulate':
 elif mode == 'monte-carlo':
     print('Starting Monte Carlo!')
 
-    samples = 50
+    samples = 100
     controller = make_controller()
 
     dvs = list()
@@ -262,8 +261,8 @@ elif mode == 'monte-carlo':
             # Control stage
             A = cw((T * dt) / 1.0e9, dynamics.mean_motion)
             B = A[:, 3:6] / m
-            r0 = dynamics.true_dr
-            v0 = dynamics.true_dv
+            r0 = dynamics.measured_dr
+            v0 = dynamics.measured_dv
             x0 = np.array([r0[0], r0[1], r0[2], v0[0], v0[1], v0[2]])
             controller.run(A, B, x0)
             u = -controller.control if isinstance(dynamics, PSimDynamics) else controller.control
