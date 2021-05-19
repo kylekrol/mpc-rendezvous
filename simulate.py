@@ -12,7 +12,7 @@ import os
 ### Configuration Parameters ###################################################
 
 # Mode -- either 'simulate', 'plan', or 'monte-carlo'
-mode = 'simulate'
+mode = 'monte-carlo'
 
 # Simulation timestep (0.1 s), satellite mass, and target mean motion.
 dt = 100000000
@@ -42,10 +42,10 @@ def make_psim(x0):
 # Function to generate a QCQP controller
 def make_qcqp():
     ## Solely L2 norm control cost
-    # Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
-    # R = sp.sparse.diags([1.0, 1.0, 1.0])
-    # rho = 0.0
-    # J = 1.0e-4
+    Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
+    R = sp.sparse.diags([1.0, 1.0, 1.0])
+    rho = 0.0
+    J = 1.0e-4
     ##
 
     ## Joint L2 and L1 norm control cost
@@ -56,10 +56,10 @@ def make_qcqp():
     ##
 
     ## Solely L1 norm control cost
-    Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
-    R = sp.sparse.diags([0.0, 0.0, 0.0])
-    rho = 0.025
-    J = 0.9e-4
+    # Q = sp.sparse.diags([100.0, 100.0, 100.0, 10000.0, 10000.0, 10000.0])
+    # R = sp.sparse.diags([0.0, 0.0, 0.0])
+    # rho = 0.025
+    # J = 0.9e-4
     ##
 
     return VariableHorizonController(N, QCQPController, J, Q, R, rho, umax)
