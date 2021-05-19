@@ -242,7 +242,7 @@ elif mode == 'monte-carlo':
 
         r = 50.0 * np.random.randn()
         t = (-500.0 if np.random.rand() > 0.5 else 500.0) + 50.0 * np.random.randn()
-        n = 50.0 * np.random.randn()
+        n = 10.0 * np.random.randn()
         v = 0.05 * np.random.randn(3)
         x0 = np.array([r, t, n, v[0], v[1], v[2]])
 
